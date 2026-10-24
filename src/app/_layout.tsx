@@ -3,11 +3,14 @@ import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { Suspense, useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, useColorScheme, View } from 'react-native';
 
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { migrate } from '@/db/migrate';
+import { initReminders } from '@/services/reminders';
 import { useProviderStore } from '@/store/providerStore';
 import { Colors } from '@/theme';
 
 export default function RootLayout() {
+  useEffect(() => initReminders(), []);
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[scheme];
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -31,6 +34,8 @@ export default function RootLayout() {
           </LoadProviders>
         </SQLiteProvider>
       </Suspense>
+      {/* Used by confirm() on web; native confirmations use the system Alert. */}
+      <ConfirmDialog />
     </ThemeProvider>
   );
 }

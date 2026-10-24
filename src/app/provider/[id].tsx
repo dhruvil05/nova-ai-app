@@ -1,14 +1,14 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ProviderKind } from '@/ai/llm';
 import { PRESETS, presetById } from '@/ai/presets';
 import { ModelPicker } from '@/components/ModelPicker';
 import { Button, Field, IconButton } from '@/components/ui';
-import { createProvider, deleteProvider, updateProvider } from '@/db/providersRepo';
+import { createProvider, deleteProvider, updateProvider, type ProviderProfile } from '@/db/providersRepo';
 import { confirm } from '@/lib/confirm';
 import { goBack } from '@/lib/navigation';
 import { getApiKey, setApiKey } from '@/lib/secrets';
@@ -27,12 +27,35 @@ function validUrl(url: string) {
 /** Adds (id = "new") or edits a provider profile. */
 export default function ProviderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const isNew = id === 'new';
+  const colors = useColors();
+  const loaded = useProviderStore((s) => s.loaded);
+  const existing = useProviderStore((s) => (id === 'new' ? undefined : s.providers.find((p) => p.id === Number(id))));
+
+  // Opened directly (a deep link or a web reload), the profiles may still be
+  // loading. The form reads its starting values only once, so it waits for them.
+  if (!loaded) {
+    return (
+      <View style={[styles.missing, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.textSecondary} />
+      </View>
+    );
+  }
+  if (id !== 'new' && !existing) {
+    return (
+      <View style={[styles.missing, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.textSecondary }}>This provider no longer exists.</Text>
+      </View>
+    );
+  }
+  return <ProviderForm key={existing?.id ?? 'new'} existing={existing} />;
+}
+
+function ProviderForm({ existing }: { existing?: ProviderProfile }) {
+  const isNew = !existing;
   const db = useSQLiteContext();
   const router = useRouter();
   const colors = useColors();
-  const { providers, activeId, load, setActive } = useProviderStore();
-  const existing = isNew ? undefined : providers.find((p) => p.id === Number(id));
+  const { activeId, load, setActive } = useProviderStore();
 
   const [presetId, setPresetId] = useState(existing?.presetId ?? 'openai');
   const [name, setName] = useState(existing?.name ?? presetById('openai').label);
@@ -48,9 +71,11 @@ export default function ProviderScreen() {
   const preset = presetById(presetId);
   const flexibleFormat = presetId === 'custom' || presetId === 'local';
 
+  // Keyed on the id, so reloading the profiles never replaces a key being typed.
+  const existingId = existing?.id;
   useEffect(() => {
-    if (existing) getApiKey(existing.id).then(setKey);
-  }, [existing]);
+    if (existingId !== undefined) getApiKey(existingId).then(setKey);
+  }, [existingId]);
 
   const choosePreset = (next: string) => {
     if (next === presetId) return;
@@ -66,9 +91,14 @@ export default function ProviderScreen() {
 
   const save = async () => {
     const input = { name: name.trim(), presetId, kind, baseUrl: baseUrl.trim().replace(/\/+$/, ''), model: model.trim() };
+    const key = apiKey.trim();
     if (!input.name) return setError('Give this provider a name.');
     if (!validUrl(input.baseUrl)) return setError('Enter a base URL starting with http:// or https://.');
-    if (preset.needsKey && !apiKey.trim()) return setError('Enter your API key.');
+    if (preset.needsKey && !key) return setError('Enter your API key.');
+    // API keys never contain spaces or quotes; these mean a label or quotes were pasted along with it.
+    if (/[\s"'`]/.test(key)) {
+      return setError('The API key has spaces or quotes in it. Paste only the key itself, without a label such as "openrouter:".');
+    }
     if (!input.model) return setError('Choose or type a model.');
 
     setSaving(true);
@@ -79,7 +109,7 @@ export default function ProviderScreen() {
       } else {
         await updateProvider(db, providerId, input);
       }
-      await setApiKey(providerId, apiKey.trim());
+      await setApiKey(providerId, key);
       await load(db);
       // A newly added provider becomes the one you chat with.
       if (isNew || activeId === null) await setActive(db, providerId);
@@ -97,14 +127,6 @@ export default function ProviderScreen() {
     await load(db);
     goBack(router);
   };
-
-  if (!isNew && !existing) {
-    return (
-      <View style={[styles.missing, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.textSecondary }}>This provider no longer exists.</Text>
-      </View>
-    );
-  }
 
   return (
     <>

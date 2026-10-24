@@ -1,4 +1,7 @@
-// React Native's Alert does nothing on web, so the dev preview uses the browser dialog.
-export function confirm(title: string, message: string): Promise<boolean> {
-  return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+import { askToConfirm } from '@/components/ConfirmDialog';
+
+// window.confirm is blocked in embedded browsers (it returns false without
+// showing anything), so the web build asks with a dialog drawn by the app.
+export function confirm(title: string, message: string, confirmLabel = 'Delete'): Promise<boolean> {
+  return askToConfirm(title, message, confirmLabel);
 }

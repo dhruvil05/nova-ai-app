@@ -39,6 +39,16 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+  // 2: Long-term memory — short facts about the user that the AI saves with its remember tool.
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS memories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 export async function migrate(db: SQLiteDatabase) {

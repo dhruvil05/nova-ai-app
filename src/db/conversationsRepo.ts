@@ -1,6 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export type Role = 'user' | 'assistant';
+import type { ToolCall } from '@/ai/llm';
+
+export type Role = 'user' | 'assistant' | 'tool';
 
 export interface Conversation {
   id: number;
@@ -13,9 +15,33 @@ export interface Message {
   id: number;
   conversationId: number;
   role: Role;
+  /** What the user or assistant wrote. Empty for tool results. */
   text: string;
   /** Model that wrote an assistant message. */
   model?: string;
+  /** A reasoning model's thinking before it answered. */
+  reasoning?: string;
+  /** Tools the assistant asked to run. Their results follow as 'tool' messages. */
+  toolCalls?: ToolCall[];
+  /** The reply hit the length limit and stops mid-answer. */
+  cutOff?: boolean;
+  /** The model does not support tools, so it answered without them. */
+  toolsUnsupported?: boolean;
+  /** For a tool result: the call it answers, the tool's name, and what the tool returned. */
+  toolCallId?: string;
+  toolName?: string;
+  result?: Record<string, unknown>;
+  createdAt: number;
+}
+
+export type MessageInput = Omit<Message, 'id' | 'conversationId' | 'createdAt'>;
+
+/** A past message that matched a search. */
+export interface MessageMatch {
+  conversationId: number;
+  title: string;
+  role: 'user' | 'assistant';
+  text: string;
   createdAt: number;
 }
 
@@ -46,20 +72,33 @@ function toConversation(row: ConversationRow): Conversation {
 }
 
 function toMessage(row: MessageRow): Message {
-  let content: { text?: string; model?: string } = {};
+  let content: Partial<MessageInput> = {};
   try {
     content = JSON.parse(row.content);
   } catch {
     content = { text: row.content };
   }
   return {
+    ...content,
     id: row.id,
     conversationId: row.conversation_id,
     role: row.role,
     text: content.text ?? '',
-    model: content.model,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * The results of the tool calls in messages[index], by call id. They are the
+ * tool messages right after it, so ids only need to be unique within one reply.
+ */
+export function toolResultsAfter(messages: Message[], index: number): Map<string, Message> {
+  const results = new Map<string, Message>();
+  for (let i = index + 1; i < messages.length && messages[i].role === 'tool'; i++) {
+    const id = messages[i].toolCallId;
+    if (id) results.set(id, messages[i]);
+  }
+  return results;
 }
 
 export function titleFrom(text: string) {
@@ -102,22 +141,45 @@ export async function listMessages(db: SQLiteDatabase, conversationId: number): 
   return rows.map(toMessage);
 }
 
-export async function addMessage(
-  db: SQLiteDatabase,
-  conversationId: number,
-  role: Role,
-  text: string,
-  model?: string
-): Promise<Message> {
+export async function addMessage(db: SQLiteDatabase, conversationId: number, input: MessageInput): Promise<Message> {
   const now = Date.now();
-  const content = JSON.stringify(model ? { text, model } : { text });
+  // Everything but the role goes into the JSON content column; unset fields are left out.
+  const { role, ...content } = input;
   const result = await db.runAsync(
     'INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)',
     conversationId,
     role,
-    content,
+    JSON.stringify(content),
     now
   );
   await db.runAsync('UPDATE conversations SET updated_at = ? WHERE id = ?', now, conversationId);
-  return { id: result.lastInsertRowId, conversationId, role, text, model, createdAt: now };
+  return { ...input, id: result.lastInsertRowId, conversationId, createdAt: now };
+}
+
+/** Finds user and assistant messages that contain every word of `query`, newest first. */
+export async function searchMessages(
+  db: SQLiteDatabase,
+  query: string,
+  { excludeConversationId, limit }: { excludeConversationId?: number; limit: number }
+): Promise<MessageMatch[]> {
+  const words = query.split(/\s+/).filter(Boolean).slice(0, 8);
+  if (!words.length) return [];
+  const conditions = words.map(() => "json_extract(m.content, '$.text') LIKE ? ESCAPE '\\'").join(' AND ');
+  const patterns = words.map((word) => `%${word.replace(/[\\%_]/g, '\\$&')}%`);
+  const rows = await db.getAllAsync<{ conversation_id: number; title: string | null; role: 'user' | 'assistant'; text: string; created_at: number }>(
+    `SELECT m.conversation_id, c.title, m.role, json_extract(m.content, '$.text') AS text, m.created_at
+     FROM messages m JOIN conversations c ON c.id = m.conversation_id
+     WHERE m.role IN ('user', 'assistant') AND m.conversation_id IS NOT ? AND ${conditions}
+     ORDER BY m.id DESC LIMIT ?`,
+    excludeConversationId ?? null,
+    ...patterns,
+    limit
+  );
+  return rows.map((row) => ({
+    conversationId: row.conversation_id,
+    title: row.title || 'New chat',
+    role: row.role,
+    text: row.text,
+    createdAt: row.created_at,
+  }));
 }

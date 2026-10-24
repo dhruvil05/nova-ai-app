@@ -12,6 +12,8 @@ const ICONS = {
   check: { ios: 'checkmark', android: 'check' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right' },
   chevronDown: { ios: 'chevron.down', android: 'expand_more' },
+  chevronUp: { ios: 'chevron.up', android: 'expand_less' },
+  forward: { ios: 'arrow.right', android: 'arrow_forward' },
   show: { ios: 'eye', android: 'visibility' },
   hide: { ios: 'eye.slash', android: 'visibility_off' },
   refresh: { ios: 'arrow.clockwise', android: 'refresh' },
@@ -19,6 +21,11 @@ const ICONS = {
   sparkles: { ios: 'sparkles', android: 'auto_awesome' },
   search: { ios: 'magnifyingglass', android: 'search' },
   error: { ios: 'exclamationmark.triangle', android: 'warning' },
+  declined: { ios: 'nosign', android: 'block' },
+  thinking: { ios: 'lightbulb', android: 'lightbulb' },
+  tool: { ios: 'wrench.and.screwdriver', android: 'build' },
+  memory: { ios: 'brain', android: 'psychology' },
+  reminder: { ios: 'bell', android: 'notifications' },
 } satisfies Record<string, { ios: SymbolViewProps['name'] & string; android: AndroidSymbol }>;
 
 export type IconName = keyof typeof ICONS;

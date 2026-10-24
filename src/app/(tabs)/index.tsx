@@ -1,18 +1,22 @@
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Composer } from '@/components/Composer';
 import { Icon } from '@/components/Icon';
-import { MessageBubble } from '@/components/MessageBubble';
+import { MessageBubble, type MessageBubbleProps } from '@/components/MessageBubble';
 import { Button, IconButton } from '@/components/ui';
-import { useChatStore } from '@/store/chatStore';
+import { toolResultsAfter } from '@/db/conversationsRepo';
+import { awaitsReply, useChatStore } from '@/store/chatStore';
 import { useActiveProvider, useProviderStore } from '@/store/providerStore';
 import { Radius, Spacing, useColors } from '@/theme';
 
-type Item = { key: string; role: 'user' | 'assistant'; text: string; model?: string; pending?: boolean };
+type Item = { key: string; bubble: MessageBubbleProps };
+
+/** Sent when the user taps Continue under a reply that was cut off. */
+const CONTINUE_PROMPT = 'Continue from where you stopped.';
 
 export default function ChatScreen() {
   const db = useSQLiteContext();
@@ -21,17 +25,54 @@ export default function ChatScreen() {
   const provider = useActiveProvider();
   const providersLoaded = useProviderStore((s) => s.loaded);
   const { messages, streaming, error, send, retry, stop, open } = useChatStore();
+  const busy = streaming !== null;
+  const continueReply = useCallback(() => send(db, CONTINUE_PROMPT), [db, send]);
+
+  // Saved messages, with each tool result folded into the card of the call that asked for it.
+  const saved = useMemo(() => {
+    const lastUser = messages.findLastIndex((m) => m.role === 'user');
+    const list: Item[] = [];
+    messages.forEach((m, i) => {
+      if (m.role === 'user') {
+        list.push({ key: String(m.id), bubble: { role: 'user', text: m.text } });
+      } else if (m.role === 'assistant') {
+        const results = toolResultsAfter(messages, i);
+        const isLast = i === messages.length - 1;
+        list.push({
+          key: String(m.id),
+          bubble: {
+            role: 'assistant',
+            text: m.text,
+            model: m.model,
+            reasoning: m.reasoning,
+            cutOff: m.cutOff,
+            toolsUnsupported: m.toolsUnsupported,
+            onContinue: m.cutOff && isLast && !busy ? continueReply : undefined,
+            tools: m.toolCalls?.map((call) => ({
+              call,
+              result: results.get(call.id)?.result,
+              running: busy && i > lastUser && !results.has(call.id),
+            })),
+          },
+        });
+      }
+    });
+    return list;
+  }, [messages, busy, continueReply]);
 
   // The list is inverted so it stays pinned to the newest message.
   const items = useMemo(() => {
-    const list: Item[] = messages.map((m) => ({ key: String(m.id), role: m.role, text: m.text, model: m.model }));
-    if (streaming !== null) list.push({ key: 'streaming', role: 'assistant', text: streaming, pending: true });
+    const toolsRunning = saved.some((item) => item.bubble.tools?.some((tool) => tool.running));
+    // While tools run their cards show progress, so an empty draft needs no spinner of its own.
+    const showDraft = streaming !== null && (!!streaming.text || !!streaming.reasoning || !toolsRunning);
+    const list = showDraft
+      ? [...saved, { key: 'streaming', bubble: { role: 'assistant', text: streaming.text, reasoning: streaming.reasoning, pending: true } } satisfies Item]
+      : [...saved];
     return list.reverse();
-  }, [messages, streaming]);
+  }, [saved, streaming]);
 
-  const busy = streaming !== null;
   const needsSetup = providersLoaded && !provider;
-  const canRetry = !busy && !!error && messages[messages.length - 1]?.role === 'user';
+  const canRetry = !busy && !!error && awaitsReply(messages);
 
   return (
     <SafeAreaView edges={['top']} style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -82,9 +123,7 @@ export default function ChatScreen() {
             inverted
             data={items}
             keyExtractor={(item) => item.key}
-            renderItem={({ item }) => (
-              <MessageBubble role={item.role} text={item.text} model={item.model} pending={item.pending} />
-            )}
+            renderItem={({ item }) => <MessageBubble {...item.bubble} />}
             contentContainerStyle={styles.list}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"

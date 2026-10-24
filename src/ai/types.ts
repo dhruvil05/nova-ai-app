@@ -12,18 +12,56 @@ export interface ProviderConfig {
   model: string;
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
+/** A request from the model to run one of the app's tools. */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/** What the model is told about a tool: its name, what it does, and a JSON Schema for its input. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export type ChatMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
+  /** The result of a tool call, as JSON text. Always follows the assistant message that asked for it. */
+  | { role: 'tool'; toolCallId: string; name: string; content: string };
+
+/** A piece of a streaming reply: the answer itself, or a reasoning model's thinking. */
+export interface StreamDelta {
+  type: 'text' | 'reasoning';
+  text: string;
 }
 
 export interface ChatRequest {
   provider: ProviderConfig;
   system: string;
   messages: ChatMessage[];
+  /** Tools the model may call. Leave empty for a plain chat. */
+  tools?: ToolDefinition[];
   /** Called with each new piece of text as the reply streams in. */
-  onDelta: (text: string) => void;
+  onDelta: (delta: StreamDelta) => void;
   signal?: AbortSignal;
+}
+
+/**
+ * Why a reply ended: finished normally, wants tools run, or hit the
+ * MAX_REPLY_TOKENS limit and was cut off mid-answer.
+ */
+export type StopReason = 'end' | 'tool_use' | 'length';
+
+export interface ChatResult {
+  text: string;
+  reasoning: string;
+  toolCalls: ToolCall[];
+  stopReason: StopReason;
+  /** True if the model rejected tools, so the reply was asked for without them. */
+  toolsUnsupported?: boolean;
 }
 
 export interface ModelInfo {
@@ -50,4 +88,14 @@ export const MAX_REPLY_TOKENS = 4096;
 
 export function normalizeBaseUrl(url: string) {
   return url.trim().replace(/\/+$/, '');
+}
+
+/** Parses streamed tool arguments. Bad JSON becomes {}, so the tool's own input check reports it. */
+export function parseToolInput(json: string): Record<string, unknown> {
+  try {
+    const value = JSON.parse(json || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
 }

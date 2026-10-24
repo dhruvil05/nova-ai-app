@@ -2,7 +2,7 @@ import { fetch } from 'expo/fetch';
 
 import * as anthropic from './providers/anthropic';
 import * as openai from './providers/openai';
-import { LlmError, type ChatRequest, type ModelInfo, type ProviderConfig } from './types';
+import { LlmError, normalizeBaseUrl, type ChatRequest, type ChatResult, type ModelInfo, type ProviderConfig } from './types';
 
 export * from './types';
 
@@ -12,14 +12,47 @@ export * from './types';
  * in src/ai/providers/.
  */
 
-/** Streams a reply and resolves with the full text once it is complete. */
-export async function chat(request: ChatRequest): Promise<string> {
+/** Models that rejected tools since the app started, so they are not asked again. */
+const noToolSupport = new Set<string>();
+
+/**
+ * Streams a reply and resolves once it is complete. If the model does not
+ * support tools (many local and OpenRouter models), asks again without them.
+ */
+export async function chat(request: ChatRequest): Promise<ChatResult> {
   const { provider } = request;
   if (!provider.model) throw new LlmError('No model selected. Choose one in Settings.');
-  const adapter = provider.kind === 'anthropic' ? anthropic : openai;
+  if (!request.tools?.length) return stream(request);
+
+  const key = `${provider.kind} ${normalizeBaseUrl(provider.baseUrl)} ${provider.model}`;
+  if (!noToolSupport.has(key)) {
+    try {
+      return await stream(request);
+    } catch (error) {
+      if (!rejectsTools(error)) throw error;
+      noToolSupport.add(key);
+    }
+  }
+  return { ...(await stream({ ...request, tools: undefined })), toolsUnsupported: true };
+}
+
+async function stream(request: ChatRequest): Promise<ChatResult> {
+  const adapter = request.provider.kind === 'anthropic' ? anthropic : openai;
   const { url, headers, body } = adapter.buildChatRequest(request);
   const response = await send(url, { method: 'POST', headers, body: JSON.stringify(body), signal: request.signal });
   return adapter.readChatStream(response, request.onDelta);
+}
+
+/**
+ * Matches the ways services say a model has no tool support, such as Ollama's
+ * "does not support tools" or OpenRouter's "No endpoints found that support tool use".
+ */
+function rejectsTools(error: unknown) {
+  return (
+    error instanceof LlmError &&
+    [400, 404, 422].includes(error.status ?? 0) &&
+    /support\w*\W+(\w+\W+)?(tools?|function)\b|\b(tools?|function)\W+(\w+\W+)?(is|are) not supported/i.test(error.message)
+  );
 }
 
 /** Lists the models a provider offers. Throws LlmError if the provider has no model list. */
