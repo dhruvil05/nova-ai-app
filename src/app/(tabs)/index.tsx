@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,7 @@ import { Composer } from '@/components/Composer';
 import { Icon } from '@/components/Icon';
 import { MessageBubble, type MessageBubbleProps } from '@/components/MessageBubble';
 import { Button, IconButton } from '@/components/ui';
-import { toolResultsAfter } from '@/db/conversationsRepo';
+import { toolResultsAfter, type Message } from '@/db/conversationsRepo';
 import { awaitsReply, useChatStore } from '@/store/chatStore';
 import { useActiveProvider, useProviderStore } from '@/store/providerStore';
 import { Radius, Spacing, useColors } from '@/theme';
@@ -24,9 +24,14 @@ export default function ChatScreen() {
   const colors = useColors();
   const provider = useActiveProvider();
   const providersLoaded = useProviderStore((s) => s.loaded);
-  const { messages, streaming, error, send, retry, stop, open } = useChatStore();
+  const { messages, streaming, error, send, retry, regenerate, editLast, stop, open } = useChatStore();
   const busy = streaming !== null;
   const continueReply = useCallback(() => send(db, CONTINUE_PROMPT), [db, send]);
+  const regenerateReply = useCallback(() => regenerate(db), [db, regenerate]);
+
+  // Editing ends by itself once a reply starts or the message is gone (another chat was opened).
+  const [editing, setEditing] = useState<Message | null>(null);
+  const editTarget = editing && !busy && messages.some((m) => m.id === editing.id) ? editing : null;
 
   // Saved messages, with each tool result folded into the card of the call that asked for it.
   const saved = useMemo(() => {
@@ -34,7 +39,10 @@ export default function ChatScreen() {
     const list: Item[] = [];
     messages.forEach((m, i) => {
       if (m.role === 'user') {
-        list.push({ key: String(m.id), bubble: { role: 'user', text: m.text } });
+        list.push({
+          key: String(m.id),
+          bubble: { role: 'user', text: m.text, onEdit: i === lastUser && !busy ? () => setEditing(m) : undefined },
+        });
       } else if (m.role === 'assistant') {
         const results = toolResultsAfter(messages, i);
         const isLast = i === messages.length - 1;
@@ -48,6 +56,7 @@ export default function ChatScreen() {
             cutOff: m.cutOff,
             toolsUnsupported: m.toolsUnsupported,
             onContinue: m.cutOff && isLast && !busy ? continueReply : undefined,
+            onRegenerate: isLast && !busy ? regenerateReply : undefined,
             tools: m.toolCalls?.map((call) => ({
               call,
               result: results.get(call.id)?.result,
@@ -58,7 +67,7 @@ export default function ChatScreen() {
       }
     });
     return list;
-  }, [messages, busy, continueReply]);
+  }, [messages, busy, continueReply, regenerateReply]);
 
   // The list is inverted so it stays pinned to the newest message.
   const items = useMemo(() => {
@@ -82,12 +91,12 @@ export default function ChatScreen() {
           style={styles.titleWrap}
           onPress={() => router.push(provider ? '/models' : '/settings')}
           accessibilityRole="button"
-          accessibilityLabel="Choose model">
+          accessibilityLabel="Choose provider and model">
           <Text style={[styles.title, { color: colors.text }]}>Nova</Text>
           {provider && (
             <View style={styles.modelChip}>
               <Text style={[styles.modelText, { color: colors.textSecondary }]} numberOfLines={1}>
-                {provider.model || 'Choose a model'}
+                {provider.name} · {provider.model || 'Choose a model'}
               </Text>
               <Icon name="chevronDown" size={14} color={colors.textSecondary} />
             </View>
@@ -142,7 +151,24 @@ export default function ChatScreen() {
           </View>
         )}
 
-        <Composer busy={busy} disabled={needsSetup} onSend={(text) => send(db, text)} onStop={stop} />
+        <Composer
+          // A new key starts the composer over, with the edited message's text or empty.
+          key={editTarget ? `edit-${editTarget.id}` : 'new'}
+          initialText={editTarget?.text}
+          editing={!!editTarget}
+          onCancelEdit={() => setEditing(null)}
+          busy={busy}
+          disabled={needsSetup}
+          onSend={(text) => {
+            if (editTarget) {
+              setEditing(null);
+              editLast(db, text);
+            } else {
+              send(db, text);
+            }
+          }}
+          onStop={stop}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -10,8 +10,18 @@ function deviceTimeZone() {
   }
 }
 
+/** What the user wrote in Settings → Custom instructions. */
+export interface CustomInstructions {
+  aboutUser?: string | null;
+  replyStyle?: string | null;
+}
+
 // Starting point from spec §8.3. Notes, Music and Files add their tool guidance as they arrive.
-export function systemPrompt({ memories = [], now = new Date() }: { memories?: Memory[]; now?: Date } = {}) {
+export function systemPrompt({
+  memories = [],
+  instructions = {},
+  now = new Date(),
+}: { memories?: Memory[]; instructions?: CustomInstructions; now?: Date } = {}) {
   // Reminders are scheduled in the phone's own time, so the prompt uses it too.
   const date = now.toLocaleString('en-IN', {
     weekday: 'long',
@@ -33,7 +43,16 @@ export function systemPrompt({ memories = [], now = new Date() }: { memories?: M
     memories.length
       ? ['What you remember about the user (id: fact):', ...memories.map((m) => `- ${m.id}: ${m.text}`)].join('\n')
       : 'You have not saved anything about the user yet.',
+    ...customInstructions(instructions),
   ].join('\n');
+}
+
+/** The user's own words, kept below the rules above so they shape replies without overriding them. */
+function customInstructions({ aboutUser, replyStyle }: CustomInstructions): string[] {
+  const parts: string[] = [];
+  if (aboutUser?.trim()) parts.push('', 'What the user wants you to know about them:', aboutUser.trim());
+  if (replyStyle?.trim()) parts.push('', 'How the user wants you to reply:', replyStyle.trim());
+  return parts;
 }
 
 /** Number of recent messages sent with each request (spec §8.5). */

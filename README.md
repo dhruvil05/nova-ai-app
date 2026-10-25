@@ -36,8 +36,12 @@ The app will have four tabs: **AI**, **Notes**, **Music** and **Files**. The AI 
 
 ### What works today
 
-- **Chat** with streaming replies, Markdown, Stop and Retry, and saved conversations. The last 20 messages go with each request.
-- **Any AI service**: OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, Ollama or LM Studio on your network, or any OpenAI-compatible URL. Save several profiles and switch models from the chat header.
+- **Chat** with streaming replies, Stop and Retry, and saved conversations. The last 20 messages go with each request.
+- **Regenerate and edit**: redo the latest reply, or edit your last message and send it again.
+- **Markdown** including tables, and code blocks with a Copy button that scroll sideways instead of wrapping.
+- **Chats** get a short title written by the model after the first answer, and you can search them by title or message text.
+- **Custom instructions**: tell Nova about yourself and how to reply, in Settings. They go with every message.
+- **Any AI service**: OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, DeepSeek, Ollama or LM Studio on your network, or any OpenAI-compatible URL. Save several profiles, and switch provider and model from the chat header, with your recent picks one tap away.
 - **Tools** with a visible card for every call. Destructive tools ask you first.
 
   | Tool | What it does |

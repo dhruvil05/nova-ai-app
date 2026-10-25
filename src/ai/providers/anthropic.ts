@@ -60,14 +60,14 @@ function toWire(messages: ChatMessage[], withTools: boolean) {
   return wire;
 }
 
-export function buildChatRequest({ provider, system, messages, tools }: ChatRequest) {
+export function buildChatRequest({ provider, system, messages, tools, maxTokens = MAX_REPLY_TOKENS }: ChatRequest) {
   const withTools = !!tools?.length;
   return {
     url: `${normalizeBaseUrl(provider.baseUrl)}/messages`,
     headers: headers(provider.apiKey),
     body: {
       model: provider.model,
-      max_tokens: MAX_REPLY_TOKENS,
+      max_tokens: maxTokens,
       stream: true,
       system,
       messages: toWire(messages, withTools),

@@ -3,6 +3,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ProviderKind } from '@/ai/llm';
 import { deleteApiKey } from '@/lib/secrets';
 
+import { getSetting, setSetting } from './settingsRepo';
+
 /** A saved AI service the user can chat through. The API key is kept in secure storage. */
 export interface ProviderProfile {
   id: number;
@@ -74,4 +76,29 @@ export async function updateProvider(db: SQLiteDatabase, id: number, input: Part
 export async function deleteProvider(db: SQLiteDatabase, id: number) {
   await db.runAsync('DELETE FROM providers WHERE id = ?', id);
   await deleteApiKey(id);
+}
+
+/** A model chosen recently, for switching back with one tap. */
+export interface RecentModel {
+  providerId: number;
+  model: string;
+}
+
+const MAX_RECENT_MODELS = 5;
+
+export async function listRecentModels(db: SQLiteDatabase): Promise<RecentModel[]> {
+  try {
+    const list = JSON.parse((await getSetting(db, 'recent_models')) ?? '[]');
+    return Array.isArray(list) ? list.filter((r) => typeof r?.providerId === 'number' && typeof r?.model === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Puts the models first in the recent list, in the order given. */
+export async function addRecentModels(db: SQLiteDatabase, models: RecentModel[]) {
+  const same = (a: RecentModel, b: RecentModel) => a.providerId === b.providerId && a.model === b.model;
+  const kept = (await listRecentModels(db)).filter((r) => !models.some((m) => same(m, r)));
+  const list = [...models.filter((m, i) => m.model && models.findIndex((other) => same(other, m)) === i), ...kept];
+  await setSetting(db, 'recent_models', JSON.stringify(list.slice(0, MAX_RECENT_MODELS)));
 }

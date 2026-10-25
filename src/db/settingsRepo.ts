@@ -1,6 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export type SettingKey = 'active_provider_id';
+export type SettingKey =
+  | 'active_provider_id'
+  /** JSON list of { providerId, model }, most recent first. */
+  | 'recent_models'
+  /** Custom instructions: what the user wants Nova to know about them, and how to reply. */
+  | 'about_user'
+  | 'reply_style';
 
 export async function getSetting(db: SQLiteDatabase, key: SettingKey): Promise<string | null> {
   const row = await db.getFirstAsync<{ value: string }>(

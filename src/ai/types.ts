@@ -44,6 +44,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   /** Tools the model may call. Leave empty for a plain chat. */
   tools?: ToolDefinition[];
+  /** Upper limit on the reply's length. Defaults to MAX_REPLY_TOKENS. */
+  maxTokens?: number;
   /** Called with each new piece of text as the reply streams in. */
   onDelta: (delta: StreamDelta) => void;
   signal?: AbortSignal;

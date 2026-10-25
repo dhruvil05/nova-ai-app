@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useHover } from '@/hooks/useHover';
 import { noWebOutline, Radius, Spacing, useColors } from '@/theme';
@@ -16,11 +16,16 @@ interface Props {
   disabled?: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
+  /** Text to start with, such as a message being edited. Read once, so give the Composer a new key to change it. */
+  initialText?: string;
+  /** Shows that sending will replace the user's last message, with a way to cancel. */
+  editing?: boolean;
+  onCancelEdit?: () => void;
 }
 
-export function Composer({ busy, disabled, onSend, onStop }: Props) {
+export function Composer({ busy, disabled, onSend, onStop, initialText = '', editing, onCancelEdit }: Props) {
   const colors = useColors();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
   const [height, setHeight] = useState(MIN_HEIGHT);
   const [focused, setFocused] = useState(false);
   const { hovered, hoverProps } = useHover();
@@ -37,6 +42,15 @@ export function Composer({ busy, disabled, onSend, onStop }: Props) {
 
   return (
     <View style={[styles.bar, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+      {editing && (
+        <View style={styles.editBar}>
+          <Icon name="edit" size={14} color={colors.textSecondary} />
+          <Text style={[styles.editText, { color: colors.textSecondary }]}>Editing your message</Text>
+          <Pressable onPress={onCancelEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel editing">
+            <Text style={[styles.editCancel, { color: colors.accent }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
       <View
         {...hoverProps}
         style={[styles.field, { backgroundColor: colors.surface, borderColor }, disabled && styles.disabled]}>
@@ -47,6 +61,7 @@ export function Composer({ busy, disabled, onSend, onStop }: Props) {
           placeholderTextColor={colors.textSecondary}
           multiline
           editable={!disabled}
+          autoFocus={editing}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           // Grow with the text, up to six lines, then scroll.
@@ -124,6 +139,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   disabled: { opacity: 0.6 },
+  editBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm },
+  editText: { flex: 1, fontSize: 13 },
+  editCancel: { fontSize: 13, fontWeight: '700' },
   input: {
     flex: 1,
     fontSize: 16,

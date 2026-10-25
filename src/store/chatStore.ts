@@ -2,18 +2,22 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { create } from 'zustand';
 
 import { MAX_ROUNDS, runAgent, type AgentStep } from '@/ai/agent';
-import { isAbortError, type ChatMessage } from '@/ai/llm';
+import { isAbortError, type ChatMessage, type ProviderConfig } from '@/ai/llm';
 import { HISTORY_LIMIT, systemPrompt } from '@/ai/prompt';
+import { suggestTitle } from '@/ai/title';
 import {
   addMessage,
   createConversation,
+  deleteMessagesFrom,
   listMessages,
+  renameConversation,
   titleFrom,
   toolResultsAfter,
   type Message,
   type MessageInput,
 } from '@/db/conversationsRepo';
 import { listMemories } from '@/db/memoriesRepo';
+import { getSetting } from '@/db/settingsRepo';
 import { confirm } from '@/lib/confirm';
 
 import { activeProviderConfig } from './providerStore';
@@ -39,6 +43,10 @@ interface ChatState {
   send: (db: SQLiteDatabase, text: string) => Promise<void>;
   /** Asks for a reply again after a failed request. */
   retry: (db: SQLiteDatabase) => Promise<void>;
+  /** Replaces the latest reply with a new one. */
+  regenerate: (db: SQLiteDatabase) => Promise<void>;
+  /** Replaces the last user message with new text, and its reply with a new one. */
+  editLast: (db: SQLiteDatabase, text: string) => Promise<void>;
   stop: () => void;
   /** Forgets the open conversation if it was deleted. */
   forget: (conversationId: number | 'all') => void;
@@ -92,6 +100,24 @@ function toMessageInput(step: AgentStep, model: string): MessageInput {
   };
 }
 
+/**
+ * Replaces the chat's title, first made from the opening message, with a
+ * short one written by the model. Runs in the background; on any failure
+ * the old title stays.
+ */
+async function nameConversation(db: SQLiteDatabase, conversationId: number, provider: ProviderConfig) {
+  try {
+    const messages = await listMessages(db, conversationId);
+    const question = messages.find((m) => m.role === 'user')?.text;
+    const answer = messages.findLast((m) => m.role === 'assistant' && m.text.trim())?.text;
+    if (!question || !answer) return;
+    const title = await suggestTitle(provider, question, answer);
+    if (title) await renameConversation(db, conversationId, title);
+  } catch {
+    // Keep the title made from the first message.
+  }
+}
+
 let controller: AbortController | null = null;
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -124,12 +150,18 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (isOpen()) set((s) => ({ messages: [...s.messages, saved], streaming: s.streaming && EMPTY_DRAFT }));
     };
     set({ streaming: EMPTY_DRAFT, error: null });
+    // The first answer in a chat is when it gets its real title.
+    const firstExchange = get().messages.filter((m) => m.role === 'user').length === 1;
 
     try {
-      const memories = await listMemories(db);
+      const [memories, aboutUser, replyStyle] = await Promise.all([
+        listMemories(db),
+        getSetting(db, 'about_user'),
+        getSetting(db, 'reply_style'),
+      ]);
       const { finished } = await runAgent({
         provider,
-        system: systemPrompt({ memories }),
+        system: systemPrompt({ memories, instructions: { aboutUser, replyStyle } }),
         history: toChatHistory(get().messages),
         context: { db, conversationId },
         signal,
@@ -145,6 +177,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!finished && isOpen()) {
         set({ error: `Nova stopped after ${MAX_ROUNDS} rounds of tool use to avoid a loop. Ask again to carry on.` });
       }
+      if (finished && firstExchange) void nameConversation(db, conversationId, provider);
     } catch (error) {
       if (isAbortError(error)) {
         // Stopped by the user: keep whatever text arrived.
@@ -159,6 +192,26 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (controller?.signal === signal) controller = null;
       if (isOpen()) set({ streaming: null });
     }
+  }
+
+  /**
+   * Deletes messages[from] and everything after it, adds `newText` as a user
+   * message if given, and asks for a new reply.
+   */
+  async function redo(db: SQLiteDatabase, from: number, newText?: string) {
+    const { conversationId, messages, streaming } = get();
+    if (conversationId === null || streaming !== null || from < 0 || from > messages.length) return;
+    set({ streaming: EMPTY_DRAFT, error: null });
+    try {
+      if (from < messages.length) await deleteMessagesFrom(db, conversationId, messages[from].id);
+      const kept = messages.slice(0, from);
+      if (newText !== undefined) kept.push(await addMessage(db, conversationId, { role: 'user', text: newText }));
+      set({ messages: kept });
+    } catch (error) {
+      set({ streaming: null, error: `Could not update the chat: ${error instanceof Error ? error.message : error}` });
+      return;
+    }
+    await reply(db, conversationId);
   }
 
   return {
@@ -198,6 +251,18 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (conversationId === null || streaming !== null || !awaitsReply(messages)) return;
       set({ streaming: EMPTY_DRAFT, error: null });
       await reply(db, conversationId);
+    },
+
+    regenerate: async (db) => {
+      // Everything after the last user message is the reply being replaced, tool steps included.
+      const lastUser = get().messages.findLastIndex((m) => m.role === 'user');
+      if (lastUser >= 0) await redo(db, lastUser + 1);
+    },
+
+    editLast: async (db, text) => {
+      const trimmed = text.trim();
+      const lastUser = get().messages.findLastIndex((m) => m.role === 'user');
+      if (trimmed && lastUser >= 0) await redo(db, lastUser, trimmed);
     },
 
     stop: () => {

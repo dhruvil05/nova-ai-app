@@ -18,6 +18,8 @@ const ICONS = {
   hide: { ios: 'eye.slash', android: 'visibility_off' },
   refresh: { ios: 'arrow.clockwise', android: 'refresh' },
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
+  edit: { ios: 'pencil', android: 'edit' },
+  close: { ios: 'xmark', android: 'close' },
   sparkles: { ios: 'sparkles', android: 'auto_awesome' },
   search: { ios: 'magnifyingglass', android: 'search' },
   error: { ios: 'exclamationmark.triangle', android: 'warning' },

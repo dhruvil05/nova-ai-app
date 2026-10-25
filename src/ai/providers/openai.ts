@@ -50,7 +50,7 @@ function toWire(messages: ChatMessage[], withTools: boolean) {
   return wire;
 }
 
-export function buildChatRequest({ provider, system, messages, tools }: ChatRequest) {
+export function buildChatRequest({ provider, system, messages, tools, maxTokens = MAX_REPLY_TOKENS }: ChatRequest) {
   const baseUrl = normalizeBaseUrl(provider.baseUrl);
   // OpenAI itself replaced max_tokens with max_completion_tokens and rejects the old
   // name for reasoning models; other compatible services only know max_tokens.
@@ -62,7 +62,7 @@ export function buildChatRequest({ provider, system, messages, tools }: ChatRequ
     body: {
       model: provider.model,
       stream: true,
-      [isOpenAI ? 'max_completion_tokens' : 'max_tokens']: MAX_REPLY_TOKENS,
+      [isOpenAI ? 'max_completion_tokens' : 'max_tokens']: maxTokens,
       messages: [{ role: 'system', content: system }, ...toWire(messages, withTools)],
       ...(withTools && {
         tools: tools.map((tool) => ({

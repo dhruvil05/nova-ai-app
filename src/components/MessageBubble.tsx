@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { Radius, Spacing, useColors } from '@/theme';
 
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { Markdown } from './Markdown';
 import { ToolCard, type ToolCardProps } from './ToolCard';
 
@@ -23,6 +23,10 @@ export interface MessageBubbleProps {
   toolsUnsupported?: boolean;
   /** Offered on a cut-off reply when it is the latest message. */
   onContinue?: () => void;
+  /** Offered on the latest reply. */
+  onRegenerate?: () => void;
+  /** Offered on the user's last message. */
+  onEdit?: () => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -35,6 +39,8 @@ export const MessageBubble = memo(function MessageBubble({
   cutOff,
   toolsUnsupported,
   onContinue,
+  onRegenerate,
+  onEdit,
 }: MessageBubbleProps) {
   const colors = useColors();
   const [copied, setCopied] = useState(false);
@@ -54,12 +60,15 @@ export const MessageBubble = memo(function MessageBubble({
           </Text>
         </View>
         {copied && <Text style={[styles.meta, { color: colors.textSecondary }]}>Copied</Text>}
+        {onEdit && !copied && <ActionButton icon="edit" label="Edit message" onPress={onEdit} />}
       </Pressable>
     );
   }
 
-  // The model's name goes under the answer, not under each step of a tool run.
-  const meta = copied ? 'Copied' : text && !tools?.length ? [model, toolsUnsupported && 'no tool support'].filter(Boolean).join(' · ') : '';
+  // The footer goes under the answer, not under each step of a tool run.
+  const answer = !!text && !tools?.length;
+  const showFooter = !pending && (answer || !!onRegenerate);
+  const meta = copied ? 'Copied' : answer ? [model, toolsUnsupported && 'no tool support'].filter(Boolean).join(' · ') : '';
 
   return (
     <Pressable onLongPress={pending || !text ? undefined : copy} style={styles.assistantRow}>
@@ -81,10 +90,34 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </View>
       )}
-      {!pending && !!meta && <Text style={[styles.meta, { color: colors.textSecondary }]}>{meta}</Text>}
+      {showFooter && (
+        <View style={styles.footer}>
+          {!!text && <ActionButton icon={copied ? 'check' : 'copy'} label="Copy reply" onPress={copy} />}
+          {onRegenerate && <ActionButton icon="refresh" label="Regenerate reply" onPress={onRegenerate} />}
+          {!!meta && (
+            <Text style={[styles.meta, styles.footerMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+              {meta}
+            </Text>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 });
+
+function ActionButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.surface }]}>
+      <Icon name={icon} size={16} color={colors.textSecondary} />
+    </Pressable>
+  );
+}
 
 /** A reasoning model's thinking, folded by default so the answer stays in front. */
 function Reasoning({ text, thinking }: { text: string; thinking: boolean }) {
@@ -126,6 +159,9 @@ const styles = StyleSheet.create({
   userText: { fontSize: 16, lineHeight: 22 },
   assistantRow: { paddingRight: Spacing.md, gap: Spacing.sm },
   meta: { fontSize: 12 },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: -6 },
+  footerMeta: { flexShrink: 1, marginLeft: 4 },
+  action: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   spinner: { alignSelf: 'flex-start', marginVertical: Spacing.xs },
   reasoning: { gap: Spacing.sm },
   reasoningHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, alignSelf: 'flex-start' },

@@ -124,6 +124,36 @@ export async function createConversation(db: SQLiteDatabase, title: string): Pro
   return result.lastInsertRowId;
 }
 
+export async function renameConversation(db: SQLiteDatabase, id: number, title: string) {
+  await db.runAsync('UPDATE conversations SET title = ? WHERE id = ?', title, id);
+}
+
+/** A chat found by a search, with the newest message that matched (if the title alone did not). */
+export interface ConversationMatch extends Conversation {
+  match?: string;
+}
+
+/** Chats whose title or messages contain `query`, most recently active first. */
+export async function searchConversations(db: SQLiteDatabase, query: string): Promise<ConversationMatch[]> {
+  const pattern = `%${query.trim().replace(/[\\%_]/g, '\\$&')}%`;
+  const rows = await db.getAllAsync<ConversationRow & { matched_text: string | null }>(
+    `SELECT * FROM (
+       SELECT c.*, (
+         SELECT json_extract(m.content, '$.text') FROM messages m
+         WHERE m.conversation_id = c.id AND m.role IN ('user', 'assistant')
+           AND json_extract(m.content, '$.text') LIKE ? ESCAPE '\\'
+         ORDER BY m.id DESC LIMIT 1
+       ) AS matched_text
+       FROM conversations c
+     )
+     WHERE title LIKE ? ESCAPE '\\' OR matched_text IS NOT NULL
+     ORDER BY updated_at DESC`,
+    pattern,
+    pattern
+  );
+  return rows.map((row) => ({ ...toConversation(row), match: row.matched_text ?? undefined }));
+}
+
 export async function deleteConversation(db: SQLiteDatabase, id: number) {
   await db.runAsync('DELETE FROM messages WHERE conversation_id = ?', id);
   await db.runAsync('DELETE FROM conversations WHERE id = ?', id);
@@ -139,6 +169,11 @@ export async function listMessages(db: SQLiteDatabase, conversationId: number): 
     conversationId
   );
   return rows.map(toMessage);
+}
+
+/** Deletes a message and everything after it, to regenerate a reply or edit a message. */
+export async function deleteMessagesFrom(db: SQLiteDatabase, conversationId: number, fromId: number) {
+  await db.runAsync('DELETE FROM messages WHERE conversation_id = ? AND id >= ?', conversationId, fromId);
 }
 
 export async function addMessage(db: SQLiteDatabase, conversationId: number, input: MessageInput): Promise<Message> {

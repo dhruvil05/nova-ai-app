@@ -1,19 +1,19 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ProviderKind } from '@/ai/llm';
 import { PRESETS, presetById } from '@/ai/presets';
 import { ModelPicker } from '@/components/ModelPicker';
-import { Button, Field, IconButton } from '@/components/ui';
+import { Button, Chip, Field, IconButton } from '@/components/ui';
 import { createProvider, deleteProvider, updateProvider, type ProviderProfile } from '@/db/providersRepo';
 import { confirm } from '@/lib/confirm';
 import { goBack } from '@/lib/navigation';
 import { getApiKey, setApiKey } from '@/lib/secrets';
 import { useProviderStore } from '@/store/providerStore';
-import { Radius, Spacing, useColors } from '@/theme';
+import { Spacing, useColors } from '@/theme';
 
 const KINDS: { kind: ProviderKind; label: string }[] = [
   { kind: 'openai', label: 'OpenAI-compatible' },
@@ -215,29 +215,11 @@ function ProviderForm({ existing }: { existing?: ProviderProfile }) {
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      style={[
-        styles.chip,
-        { backgroundColor: selected ? colors.accent : colors.surface, borderColor: selected ? colors.accent : colors.border },
-      ]}>
-      <Text style={[styles.chipText, { color: selected ? colors.onAccent : colors.text }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.xl * 2 },
   group: { gap: Spacing.sm },
   label: { fontSize: 13, fontWeight: '600', marginLeft: Spacing.xs },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: { borderRadius: Radius.pill, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8 },
-  chipText: { fontSize: 14, fontWeight: '500' },
   hint: { fontSize: 13, lineHeight: 18, marginHorizontal: Spacing.xs },
   error: { fontSize: 14, lineHeight: 20 },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },

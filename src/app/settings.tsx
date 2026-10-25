@@ -7,6 +7,7 @@ import { presetById } from '@/ai/presets';
 import { IconButton, Row, Section } from '@/components/ui';
 import { deleteAllConversations } from '@/db/conversationsRepo';
 import { deleteMemory, listMemories, type Memory } from '@/db/memoriesRepo';
+import { getSetting } from '@/db/settingsRepo';
 import { confirm } from '@/lib/confirm';
 import { allowExactReminders, exactRemindersAllowed } from '@/services/reminders';
 import { useChatStore } from '@/store/chatStore';
@@ -22,12 +23,17 @@ export default function SettingsScreen() {
   const setActive = useProviderStore((s) => s.setActive);
   const active = useActiveProvider();
   const [memories, setMemories] = useState<Memory[]>([]);
+  // The start of the custom instructions, as a preview; empty when none are set.
+  const [instructions, setInstructions] = useState('');
   // null until known, or when this build has no reminders.
   const [exactReminders, setExactReminders] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       listMemories(db).then(setMemories);
+      Promise.all([getSetting(db, 'about_user'), getSetting(db, 'reply_style')]).then((texts) =>
+        setInstructions(texts.filter(Boolean).join(' · ').replace(/\s+/g, ' '))
+      );
       exactRemindersAllowed().then(setExactReminders, () => setExactReminders(null));
     }, [db])
   );
@@ -88,6 +94,17 @@ export default function SettingsScreen() {
           <Row first title="Model" value={active.model || 'Choose'} chevron onPress={() => router.push('/models')} />
         </Section>
       )}
+
+      <Section title="Personalisation" footer="Tell Nova about yourself and how you like replies. It reads this with every message.">
+        <Row
+          first
+          icon="edit"
+          title="Custom instructions"
+          subtitle={instructions || 'Not set'}
+          chevron
+          onPress={() => router.push('/instructions')}
+        />
+      </Section>
 
       <Section
         title="Memory"

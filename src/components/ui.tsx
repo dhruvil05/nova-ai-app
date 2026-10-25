@@ -103,7 +103,7 @@ export function Field({
             setFocused(false);
             input.onBlur?.(e);
           }}
-          style={[styles.fieldInput, noWebOutline, { color: colors.text }]}
+          style={[styles.fieldInput, input.multiline && styles.fieldMultiline, noWebOutline, { color: colors.text }]}
           accessibilityLabel={label}
         />
         {right}
@@ -153,6 +153,23 @@ export function Button({
   );
 }
 
+/** A pill for picking one option from a short list. */
+export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={[
+        styles.chip,
+        { backgroundColor: selected ? colors.accent : colors.surface, borderColor: selected ? colors.accent : colors.border },
+      ]}>
+      <Text style={[styles.chipText, { color: selected ? colors.onAccent : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function IconButton({
   icon,
   label,
@@ -193,8 +210,11 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', marginLeft: Spacing.xs },
   fieldBox: { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md, borderWidth: 1, paddingRight: Spacing.xs },
   fieldInput: { flex: 1, fontSize: 16, paddingHorizontal: Spacing.lg, paddingVertical: 12 },
+  fieldMultiline: { minHeight: 112, lineHeight: 22, textAlignVertical: 'top' },
   hint: { fontSize: 13, lineHeight: 18, marginHorizontal: Spacing.xs },
   button: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md, paddingVertical: 14, paddingHorizontal: Spacing.lg },
   buttonText: { fontSize: 16, fontWeight: '600' },
+  chip: { borderRadius: Radius.pill, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8 },
+  chipText: { fontSize: 14, fontWeight: '500' },
   iconButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

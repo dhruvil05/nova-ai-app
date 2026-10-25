@@ -30,6 +30,7 @@ export default function RootLayout() {
               <Stack.Screen name="settings" options={{ title: 'Settings' }} />
               <Stack.Screen name="provider/[id]" options={{ title: 'Provider' }} />
               <Stack.Screen name="models" options={{ title: 'Choose model' }} />
+              <Stack.Screen name="instructions" options={{ title: 'Custom instructions' }} />
             </Stack>
           </LoadProviders>
         </SQLiteProvider>
