@@ -28,9 +28,14 @@ function formatDate(ms: number) {
   return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 
-/** The part of a matching message around the search text. */
+/** The part of a matching message around the search text, without Markdown symbols. */
 function snippet(text: string, query: string) {
-  const flat = text.replace(/\s+/g, ' ').trim();
+  const flat = text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*(#+|>|[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/[*`~|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const at = Math.max(0, flat.toLowerCase().indexOf(query.trim().toLowerCase()));
   const start = Math.max(0, at - 30);
   return `${start > 0 ? '…' : ''}${flat.slice(start, start + 120)}`;

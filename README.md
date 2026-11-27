@@ -6,8 +6,46 @@ A personal AI assistant for Android. You talk to one assistant, by text and late
 
 Nova is built for a single user: no accounts, no servers, no Play Store. Your data stays on the phone; only the text needed for a request goes to the AI provider you choose. "Nova" is a working name.
 
+**Download:** the latest APK is on the [Releases page](https://github.com/dhruvil05/nova-ai-app/releases).
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/chat-tools.png" width="250" alt="A chat where Nova saves a fact about the user and searches past chats, with a card for each tool it used" />
+      <br /><sub><b>Tools</b>: a card for every action Nova takes</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/chat-markdown.png" width="250" alt="A reply with a comparison table, followed by a JavaScript code block with a Copy button" />
+      <br /><sub><b>Tables and code</b>, with one-tap copy</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/chat-reasoning.png" width="250" alt="A weekend trip plan from a local reasoning model, with its thought process shown above the answer" />
+      <br /><sub><b>Reasoning models</b>: thinking folded above the answer</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/model-switcher.png" width="250" alt="The Choose model screen with recent models, provider chips and the model list of a local Ollama server" />
+      <br /><sub><b>Switch provider and model</b> from the chat header</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/chats-search.png" width="250" alt="The Chats screen searching for car service, with matching chats and the text that matched" />
+      <br /><sub><b>Search past chats</b>, with AI-written titles</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/settings.png" width="250" alt="Settings with two AI providers, custom instructions and a remembered fact" />
+      <br /><sub><b>Settings</b>: providers, instructions and memory</sub>
+    </td>
+  </tr>
+</table>
+
+<sub>Taken at phone size in dark mode, with demo chats.</sub>
+
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Status](#status)
 - [Getting started](#getting-started)
 - [Commands](#commands)
