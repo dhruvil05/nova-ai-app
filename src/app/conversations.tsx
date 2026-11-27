@@ -12,21 +12,13 @@ import {
   type ConversationMatch,
 } from '@/db/conversationsRepo';
 import { confirm } from '@/lib/confirm';
+import { formatDate } from '@/lib/format';
 import { goBack } from '@/lib/navigation';
 import { useChatStore } from '@/store/chatStore';
 import { Spacing, useColors } from '@/theme';
 
 /** Waits for a pause in typing before searching. */
 const SEARCH_DELAY_MS = 200;
-
-function formatDate(ms: number) {
-  const date = new Date(ms);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
-}
 
 /** The part of a matching message around the search text, without Markdown symbols. */
 function snippet(text: string, query: string) {

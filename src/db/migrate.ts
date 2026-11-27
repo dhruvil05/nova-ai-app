@@ -49,6 +49,42 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
     `);
   },
+  // 3: Notes (spec §7), with a full-text index kept in sync by triggers.
+  async (db) => {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        is_private INTEGER NOT NULL DEFAULT 0,   -- 1 = hidden from the AI
+        created_by TEXT NOT NULL DEFAULT 'user', -- 'user' | 'ai'
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS notes_updated ON notes(updated_at);
+    `);
+    // The web preview's SQLite has no FTS5, so the index is skipped there and
+    // notesRepo falls back to LIKE. Android's build always has it.
+    try {
+      await db.execAsync(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(title, body, content='notes', content_rowid='id');"
+      );
+    } catch {
+      return;
+    }
+    await db.execAsync(`
+      CREATE TRIGGER IF NOT EXISTS notes_fts_insert AFTER INSERT ON notes BEGIN
+        INSERT INTO notes_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+      END;
+      CREATE TRIGGER IF NOT EXISTS notes_fts_delete AFTER DELETE ON notes BEGIN
+        INSERT INTO notes_fts(notes_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+      END;
+      CREATE TRIGGER IF NOT EXISTS notes_fts_update AFTER UPDATE OF title, body ON notes BEGIN
+        INSERT INTO notes_fts(notes_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
+        INSERT INTO notes_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
+      END;
+    `);
+  },
 ];
 
 export async function migrate(db: SQLiteDatabase) {

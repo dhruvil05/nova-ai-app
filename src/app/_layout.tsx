@@ -6,11 +6,13 @@ import { ActivityIndicator, useColorScheme, View } from 'react-native';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { migrate } from '@/db/migrate';
 import { initReminders } from '@/services/reminders';
+import { lockWhenBackgrounded } from '@/store/privacyStore';
 import { useProviderStore } from '@/store/providerStore';
 import { Colors } from '@/theme';
 
 export default function RootLayout() {
   useEffect(() => initReminders(), []);
+  useEffect(() => lockWhenBackgrounded(), []);
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[scheme];
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -31,6 +33,7 @@ export default function RootLayout() {
               <Stack.Screen name="provider/[id]" options={{ title: 'Provider' }} />
               <Stack.Screen name="models" options={{ title: 'Choose model' }} />
               <Stack.Screen name="instructions" options={{ title: 'Custom instructions' }} />
+              <Stack.Screen name="note/[id]" options={{ title: '' }} />
             </Stack>
           </LoadProviders>
         </SQLiteProvider>

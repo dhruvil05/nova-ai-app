@@ -28,6 +28,9 @@ const ICONS = {
   tool: { ios: 'wrench.and.screwdriver', android: 'build' },
   memory: { ios: 'brain', android: 'psychology' },
   reminder: { ios: 'bell', android: 'notifications' },
+  notes: { ios: 'note.text', android: 'sticky_note_2' },
+  lock: { ios: 'lock.fill', android: 'lock' },
+  lockOpen: { ios: 'lock.open', android: 'lock_open' },
 } satisfies Record<string, { ios: SymbolViewProps['name'] & string; android: AndroidSymbol }>;
 
 export type IconName = keyof typeof ICONS;

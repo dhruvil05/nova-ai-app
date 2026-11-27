@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { useColors } from '@/theme';
 
-// Notes, Music and Files tabs join the AI tab in later phases.
+// Music and Files tabs join in later phases.
 export default function TabLayout() {
   const colors = useColors();
   return (
@@ -18,6 +18,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{ title: 'AI', tabBarIcon: ({ color }) => <Icon name="sparkles" size={24} color={String(color)} /> }}
+      />
+      <Tabs.Screen
+        name="notes"
+        options={{ title: 'Notes', tabBarIcon: ({ color }) => <Icon name="notes" size={24} color={String(color)} /> }}
       />
     </Tabs>
   );

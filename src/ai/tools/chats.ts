@@ -1,18 +1,8 @@
 import { searchMessages } from '@/db/conversationsRepo';
 
-import { localDateTime, shown, stringInput, type Tool } from './tool';
+import { localDateTime, shown, snippet, stringInput, type Tool } from './tool';
 
 const MAX_RESULTS = 10;
-
-/** About 200 characters around the first word that matched. */
-function snippet(text: string, query: string) {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  const firstWord = query.split(/\s+/)[0]?.toLowerCase() ?? '';
-  const at = Math.max(0, flat.toLowerCase().indexOf(firstWord));
-  const start = Math.max(0, at - 60);
-  const end = Math.min(flat.length, at + 140);
-  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`;
-}
 
 export const chatTools: Tool[] = [
   {

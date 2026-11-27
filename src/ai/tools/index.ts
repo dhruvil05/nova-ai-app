@@ -2,13 +2,14 @@ import type { ToolCall } from '../types';
 
 import { chatTools } from './chats';
 import { memoryTools } from './memory';
+import { noteTools } from './notes';
 import { reminderTools } from './reminders';
 import type { ConfirmPrompt, Tool, ToolContext, ToolResult } from './tool';
 
 export type { ConfirmPrompt, Tool, ToolContext, ToolResult } from './tool';
 
-/** Every tool the AI can call. Notes, Music and Files add theirs here as those tabs arrive. */
-export const TOOLS: Tool[] = [...chatTools, ...memoryTools, ...reminderTools];
+/** Every tool the AI can call. Music and Files add theirs here as those tabs arrive. */
+export const TOOLS: Tool[] = [...noteTools, ...chatTools, ...memoryTools, ...reminderTools];
 
 export function findTool(name: string): Tool | undefined {
   return TOOLS.find((tool) => tool.name === name);
